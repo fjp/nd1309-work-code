@@ -26,7 +26,7 @@ class LevelSandbox {
             this.db.get(key, (err, value) => {
                 if (err) {
                     if (err.type == 'NotFoundError') {
-                        console.log("UDEF");
+                        console.log("Error in getLevelDBData", err);
                         resolve(undefined);
                     } else {
                         console.log('Block ' + key + ' get failed', err);

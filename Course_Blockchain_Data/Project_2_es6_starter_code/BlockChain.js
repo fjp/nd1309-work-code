@@ -24,9 +24,14 @@ class Blockchain {
     // you will need to set this up statically or instead you can verify if the height !== 0 then you
     // will not create the genesis block
     generateGenesisBlock(){
-        let genesisBlock = new Block.Block("First block in the chain - Genesis Block");
-        this.addBlock(genesisBlock);
-
+        this.getBlockHeight().then((height) => {
+            if (height == 0) {
+                let genesisBlock = new Block.Block("First block in the chain - Genesis Block");
+                this.addBlock(genesisBlock);
+            }
+        }).catch((err) => {
+            console.log("Error in generateGenesisBlock", err);
+        });
     }
 
     // Get block height, it is auxiliar method that returns the height of the blockchain
@@ -54,8 +59,8 @@ class Blockchain {
                 newBlock.timeStamp = new Date().getTime().toString().slice(0,-3);
                 if (newBlock.height > 0) {
                     // previous block hash
-                    this.db.getLevelDBData(newBlock.height - 1).then((previousBlock) => {
-                        newBlock.previousBlockHash = JSON.parse(previousBlock).hash;
+                    this.getBlock(newBlock.height - 1).then((previousBlock) => {
+                        newBlock.previousBlockHash = previousBlock.hash;
                         // SHA256 requires a string of data
                         newBlock.hash = SHA256(JSON.stringify(newBlock)).toString();
                         // add block to chain
@@ -79,17 +84,26 @@ class Blockchain {
 
     // Get Block By Height
     getBlock(height) {
-        return this.db.getLevelDBData(height);
+        return new Promise((resolve, reject) => {
+            this.db.getLevelDBData(height).then((block) => {
+                block = JSON.parse(block);
+                resolve(block);
+            }).catch((err) => {
+                console.log("Error in getBlock in Promise", err);
+                reject(err);
+            });
+        }).catch((err) => {
+            console.log("Error in getBlock", err);
+        });
     }
 
     // Validate if Block is being tampered by Block Height
     validateBlock(height) {
-        let self = this;
-        return new Promise(function(resolve, reject) {
-            self.getBlock(height).then((block) => {
-                blockHash = block.hash;
+        return new Promise((resolve, reject) => {
+            this.getBlock(height).then((block) => {
+                let blockHash = block.hash;
                 block.hash = "";
-                validBlockHash = SHA256(JSON.stringify(block)).toString();
+                let validBlockHash = SHA256(JSON.stringify(block)).toString();
                 if (blockHash === validBlockHash) {
                     resolve(true);
                 } else {
@@ -99,6 +113,8 @@ class Blockchain {
                 console.log(err);
                 reject(err);
             });
+        }).catch((err) => {
+            console.log("Error in validateBlock", err);
         });
     }
 
@@ -107,7 +123,7 @@ class Blockchain {
         return new Promise((resolve, reject) => {
             var promises = [];
             this.getBlockHeight().then((height) => {
-                for (var i = 0; i < height - 1; ++i) {
+                for (let i = 0; i < height - 1; i++) {
                     // validate block
                     this.validateBlock(i).then((result) => {
                         if (result) {
@@ -128,6 +144,7 @@ class Blockchain {
                                 reject(err);
                             });
                         } else {
+                            console.log("Block", i, "is invalid");
                             resolve(false);
                         }
                     }).catch((err) => {
@@ -136,6 +153,7 @@ class Blockchain {
                     });
                 }
                 Promise.all(promises).then((values) => {
+                    console.log("Values are", values);
                     if (values === true) {
                         console.log("Valid blockchain");
                         resolve(true);
