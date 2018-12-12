@@ -105,7 +105,22 @@ class Blockchain {
                 block.hash = "";
                 let validBlockHash = SHA256(JSON.stringify(block)).toString();
                 if (blockHash === validBlockHash) {
-                    resolve(true);
+                    if (height > 0) {
+                        // Get previous block hash to check with the value stored inside this block
+                        this.getBlock(height - 1).then((previousBlock) => {
+                            if (previousBlock.hash === block.previousBlockHash) {
+                                resolve(true);
+                            } else {
+                                resolve(false);
+                            }
+                        }).catch((err) => {
+                            console.log("Error in validateBlock in getBlock(-1)", err);
+                            reject(err);
+                        });
+                    } else {
+                        // Genesis block
+                        resolve(true);
+                    }
                 } else {
                     resolve(false);
                 }
@@ -125,44 +140,16 @@ class Blockchain {
             this.getBlockHeight().then((height) => {
                 for (let i = 0; i < height - 1; i++) {
                     // validate block
-                    this.validateBlock(i).then((result) => {
-                        if (result) {
-                            this.getBlock(i).then((block) => {
-                                let blockHash = block.hash;
-                                // Get next block in the chain
-                                this.getBlock(i+1).then((nextBlock) => {
-                                    if (nextBlock.previousBlockHash === blockHash) {
-                                        promises.push(Promise.resolve(true));
-                                    } else {
-                                        promises.push(Promise.resolve(false));
-                                    }
-                                }).catch((err) => {
-                                    console.log("Error in validateChain in getBlock" + err);
-                                });
-                            }).catch((err) => {
-                                console.log("Error in validateChain in getBlock" + err);
-                                reject(err);
-                            });
-                        } else {
-                            console.log("Block", i, "is invalid");
-                            resolve(false);
-                        }
-                    }).catch((err) => {
-                        console.log("Error in validateChain in validateBlock" + err);
-                        reject(err);
-                    });
+                    promises.push(this.validateBlock(i));
                 }
                 Promise.all(promises).then((values) => {
-                    console.log("Values are", values);
-                    if (values === true) {
-                        console.log("Valid blockchain");
+                    if (values.every((value) => value === true)) {
                         resolve(true);
                     } else {
-                        console.log("Invalid blockchain" + values);
-                        resolve(false);
+                        resolve(values);
                     }
                 }).catch((err) => {
-                    console.log("Error in validateChain in Promise.all" + err);
+                    console.log("Error in validateChain in Promise.all", err);
                     reject(err);
                 });
             });
